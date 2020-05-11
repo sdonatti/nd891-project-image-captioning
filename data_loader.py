@@ -8,7 +8,7 @@ from PIL import Image
 from pycocotools.coco import COCO
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from vocabulary import Vocabulary
 
