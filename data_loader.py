@@ -17,19 +17,19 @@ def get_loader(transform,
                mode='train',
                batch_size=1,
                vocab_threshold=None,
-               vocab_file='./vocab.pkl',
-               start_word="<start>",
-               end_word="<end>",
-               unk_word="<unk>",
+               vocab_file=os.path.join('.', 'vocab.pkl'),
+               start_word='<start>',
+               end_word='<end>',
+               unk_word='<unk>',
                vocab_from_file=True,
                num_workers=0,
-               cocoapi_loc='/opt'):
+               cocoapi_loc=os.path.join('/', 'opt')):
     """
     Returns the data loader.
 
     Args:
       transform: Image transform.
-      mode: One of 'train' or 'test'.
+      mode: One of 'train', 'val', or 'test'.
       batch_size: Batch size (if in testing mode, must have batch_size=1).
       vocab_threshold: Minimum word count threshold.
       vocab_file: File containing the vocabulary.
@@ -41,28 +41,34 @@ def get_loader(transform,
       num_workers: Number of subprocesses to use for data loading
       cocoapi_loc: The location of the folder containing the COCO API: https://github.com/cocodataset/cocoapi
     """
-    assert mode in ['train', 'test'], "Mode must be one of 'train' or 'test'."
+    assert mode in ['train', 'val', 'test'], "Mode must be one of 'train' or 'test'."
 
     if not vocab_from_file:
         assert mode == 'train', "To generate vocab from captions file, must be in training mode (mode='train')."
 
-    # based on mode (train, val, test), obtain img_folder and annotations_file.
+    # based on mode (train, val, test), obtain img_folder and annotations_file
     if mode == 'train':
 
         if vocab_from_file:
             assert os.path.exists(vocab_file), "Change vocab_from_file to False to create vocab_file."
 
-        img_folder = os.path.join(cocoapi_loc, 'cocoapi/images/train2014/')
-        annotations_file = os.path.join(cocoapi_loc, 'cocoapi/annotations/captions_train2014.json')
+        img_folder = os.path.join(cocoapi_loc, 'cocoapi', 'images', 'train2014')
+        annotations_file = os.path.join(cocoapi_loc, 'cocoapi', 'annotations', 'captions_train2014.json')
 
-    if mode == 'test':
+    else:
         assert batch_size == 1, "Please change batch_size to 1 if testing your model."
         assert os.path.exists(vocab_file), "Must first generate vocab.pkl from training data."
         assert vocab_from_file, "Change vocab_from_file to True."
-        img_folder = os.path.join(cocoapi_loc, 'cocoapi/images/test2014/')
-        annotations_file = os.path.join(cocoapi_loc, 'cocoapi/annotations/image_info_test2014.json')
 
-    # COCO caption dataset.
+        if mode == 'val':
+            img_folder = os.path.join(cocoapi_loc, 'cocoapi', 'images', 'val2014')
+            annotations_file = os.path.join(cocoapi_loc, 'cocoapi', 'annotations', 'captions_val2014.json')
+
+        else:
+            img_folder = os.path.join(cocoapi_loc, 'cocoapi', 'images', 'test2014')
+            annotations_file = os.path.join(cocoapi_loc, 'cocoapi', 'annotations', 'image_info_test2014.json')
+
+    # create a COCO caption dataset
     dataset = CoCoDataset(transform=transform,
                           mode=mode,
                           batch_size=batch_size,
@@ -76,11 +82,11 @@ def get_loader(transform,
                           img_folder=img_folder)
 
     if mode == 'train':
-        # randomly sample a caption length, and sample indices with that length.
+        # randomly sample a caption length, and sample indices with that length
         indices = dataset.get_train_indices()
-        # create and assign a batch sampler to retrieve a batch with the sampled indices.
+        # create and assign a batch sampler to retrieve a batch with the sampled indices
         initial_sampler = SubsetRandomSampler(indices=indices)
-        # data loader for COCO dataset.
+        # create a data loader for COCO dataset
         batch_sampler = BatchSampler(sampler=initial_sampler, batch_size=dataset.batch_size, drop_last=False)
         data_loader = DataLoader(dataset=dataset, num_workers=num_workers, batch_sampler=batch_sampler)
 
@@ -102,15 +108,15 @@ class CoCoDataset(Dataset):
                                 end_word, unk_word, annotations_file, vocab_from_file)
         self.img_folder = img_folder
 
-        if self.mode == 'train':
+        if self.mode == 'train' or self.mode == 'val':
             self.coco = COCO(annotations_file)
             self.ids = list(self.coco.anns.keys())
 
-            print('Obtaining caption lengths...')
-
-            all_tokens = [nltk.tokenize.word_tokenize(str(self.coco.anns[self.ids[index]]['caption']).lower())
-                          for index in tqdm(np.arange(len(self.ids)))]
-            self.caption_lengths = [len(token) for token in all_tokens]
+            if self.mode == 'train':
+                print('Obtaining caption lengths...')
+                all_tokens = [nltk.tokenize.word_tokenize(str(self.coco.anns[self.ids[index]]['caption']).lower())
+                              for index in tqdm(np.arange(len(self.ids)))]
+                self.caption_lengths = [len(token) for token in all_tokens]
 
         else:
             test_info = json.loads(open(annotations_file).read())
@@ -119,7 +125,7 @@ class CoCoDataset(Dataset):
     def __getitem__(self, index):
 
         # obtain image and caption if in training mode
-        if self.mode == 'train':
+        if self.mode == 'train' or self.mode == 'val':
             ann_id = self.ids[index]
             caption = self.coco.anns[ann_id]['caption']
             img_id = self.coco.anns[ann_id]['image_id']
@@ -129,12 +135,20 @@ class CoCoDataset(Dataset):
             image = Image.open(os.path.join(self.img_folder, path)).convert('RGB')
             image = self.transform(image)
 
-            # convert caption to tensor of word ids.
-            tokens = nltk.tokenize.word_tokenize(str(caption).lower())
-            caption = [self.vocab(self.vocab.start_word)]
-            caption.extend([self.vocab(token) for token in tokens])
-            caption.append(self.vocab(self.vocab.end_word))
-            caption = torch.Tensor(caption).long()
+            # convert caption to tensor of word ids
+            if self.mode == 'train':
+
+                tokens = nltk.tokenize.word_tokenize(str(caption).lower())
+                caption = [self.vocab(self.vocab.start_word)]
+                caption.extend([self.vocab(token) for token in tokens])
+                caption.append(self.vocab(self.vocab.end_word))
+                caption = torch.Tensor(caption).long()
+
+            # get all captions for the image id
+            else:
+                ann_ids = self.coco.getAnnIds(img_id)
+                ann_list = self.coco.loadAnns(ann_ids)
+                caption = [ann['caption'] for ann in ann_list]
 
             # return pre-processed image and caption tensors
             return image, caption
@@ -159,9 +173,25 @@ class CoCoDataset(Dataset):
 
         return indices
 
+    def clean_sentence(self, output):
+
+        # get the words from the indices and fix end of sentence
+        words = [self.vocab.idx2word[idx] for idx in output]
+        words = words[1:-1] if words[-2] == '.' else words[1:-1] + ['.']
+
+        # humanize the sentence
+        sentence = words[0]
+        if len(words) > 1:
+            punctuation = ['.', ',', ':', ';']
+            for idx in torch.arange(len(words[1:])):
+                sentence += words[int(idx+1)] if words[int(idx+1)] in punctuation else f' {words[int(idx+1)]}'
+
+        # return the sentence
+        return sentence.capitalize()
+
     def __len__(self):
 
-        if self.mode == 'train':
+        if self.mode == 'train' or self.mode == 'val':
             return len(self.ids)
 
         else:
