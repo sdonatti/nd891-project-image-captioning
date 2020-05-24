@@ -174,7 +174,19 @@ class CoCoDataset(Dataset):
         return indices
 
     def clean_sentence(self, output):
+        """
+        Generates a human readable sentence from a list of word indices that represent an image caption
 
+        Parameters
+        ----------
+        output : list
+            The word indices that represent an image caption
+
+        Returns
+        -------
+        str:
+            The human readable sentence generated from the word indices
+        """
         # get the words from the indices and fix end of sentence
         words = [self.vocab.idx2word[idx] for idx in output]
         words = words[1:-1] if words[-2] == '.' else words[1:-1] + ['.']
@@ -184,7 +196,7 @@ class CoCoDataset(Dataset):
         if len(words) > 1:
             punctuation = ['.', ',', ':', ';']
             for idx in torch.arange(len(words[1:])):
-                sentence += words[int(idx+1)] if words[int(idx+1)] in punctuation else f' {words[int(idx+1)]}'
+                sentence += words[int(idx+1)] if words[int(idx+1)] in punctuation else ' {}'.format(words[int(idx+1)])
 
         # return the sentence
         return sentence.capitalize()
