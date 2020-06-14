@@ -35,12 +35,12 @@ Download [COCO Dataset](http://cocodataset.org/#download)
 
 * Under **Annotations**, download:
   * **2014 Train/Val annotations [241MB]** (extract captions_train2014.json and captions_val2014.json at cocoapi/annotations/)
-  * **2014 Testing Image info [1MB]** (extract image_info_test2014.json at location cocoapi/annotations/)
+  * **2014 Testing Image info [1MB]** (extract image_info_test2014.json at cocoapi/annotations/)
 
 * Under **Images**, download:
   * **2014 Train images [83K/13GB]** (extract train2014 folder at cocoapi/images/)
-  * **2014 Val images [41K/6GB]** (extract val2014 folder at location cocoapi/images/)
-  * **2014 Test images [41K/6GB]** (extract test2014 folder at location cocoapi/images/)
+  * **2014 Val images [41K/6GB]** (extract val2014 folder at cocoapi/images/)
+  * **2014 Test images [41K/6GB]** (extract test2014 folder at cocoapi/images/)
 
 Launch the project Jupyter Notebooks
 ```
